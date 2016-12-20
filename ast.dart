@@ -1,65 +1,135 @@
-import 'syntactic_entity.dart';
+import 'dart:collection';
 import 'token.dart';
+import 'visitor.dart';
 
-abstract class AstNode implements SyntacticEntity{
-  static const List<AstNode> EMPTY_LIST = const <AstNode>[];
-  
-  /**
-   * Lexical comparator: 
-   *  Return <0 if the first node comes before the second node.
-   *  Returns >0 if the first node comes after the second.
-   *  Returns 0 if same offset-position.  
-   */ 
-  static Comparator<AstNode> LEXICAL_ORDER = 
-    (AstNode first, AstNode second) => first.offset - second.offset;
+abstract class Expression {
+  dynamic accept(Visitor v);
+}
 
+class LiteralExpression extends Expression {
+  int value;
 
-  /**
-   * Return the first token included in this node's source range.
-   */
-  Token get beginToken;
-  
-  /**
-   * Return an iterator that can be used to iterate through all 
-   * the entities (either AST nodes or tokens) that make up the contents
-   * of this node.
-   */
-  Iterable<SyntacticEntity> get childEntities;
+  dynamic accept(Visitor v){
+    return v.visitLiteralExpression(this);
+  }
+
+  LiteralExpression(this.value);
+}
+
+class AdditionExpression extends Expression{
+  Expression left;
+  Expression right;
 
   @override
-  int get end;
+  dynamic accept(Visitor v){
+    return v.visitAdditionExpression(this);
+  }
 
-  Token get endToken;
+  AdditionExpression(this.left, this.right);
+}
 
-  /**
-   * Returns 'true' if this node is a SYNTEHTIC NODE. A synthetic node is a
-   * node that was introduced by the parser in order to recover from an error
-   * in the code. Synthetic nodes always have a length of ZERO ('0').
-   */
-  bool get isSynthetic;
-
-  @override
-  int get length;
+class SubtractionExpression extends Expression{
+  Expression left;
+  Expression right;
 
   @override
-  int get offset;
+  dynamic accept(Visitor v){
+    return v.visitSubtractionExpression(this);
+  }
 
-  /**
-   * Returns the node's parent node, or 'null' if this node is the root of 
-   * an AST structure. 
-   * Node that the relationship between an AST node and its parent node
-   * may change over the lifetime of a node. 
-   */
-  AstNode get parent;
+  SubtractionExpression(this.left, this.right);
+}
 
-  /**
-   * Return the node at the root of this node's AST structure. Note that this
-   * method's performance is LINEAR with respect to the depth of the node in the
-   * AST structure (O(depth))
-   */
-  AstNode get root;
+class MultiplicationExpression extends Expression{
+  Expression left;
+  Expression right;
 
-  dynamic accept(AstVisitor visitor);
-  
-  void visitChildren(AstVisitor visitor);
+  @override
+  dynamic accept(Visitor v){
+    return v.visitMultiplicationExpression(this);
+  }
+
+  MultiplicationExpression(this.left, this.right);
+}
+
+class DivisionExpression extends Expression{
+  Expression left;
+  Expression right;
+
+  @override
+  dynamic accept(Visitor v){
+    return v.visitDivisionExpression(this);
+  }
+
+  DivisionExpression(this.left, this.right);
+}
+
+class Parser {
+  Token currentToken;
+  Parser(this.currentToken);
+
+
+  Expression parseExpression(){
+    Queue<Token> outputQueue = new Queue<Token>();
+    List<Token> opStack = [];
+
+    //Shunting-yard
+    while (currentToken.type != TokenType.EOF){
+      if (currentToken is NumberToken){
+        outputQueue.add(currentToken);
+      }
+      else if (currentToken is OperatorToken){
+        while (opStack.isNotEmpty &&
+            currentToken is! BeginToken &&
+            currentToken.type.precedence <= opStack.last.type.precedence){
+          outputQueue.add(opStack.removeLast());
+        }
+        opStack.add(currentToken);
+      }
+      else if (currentToken is BeginToken){
+        opStack.add(currentToken);
+      }
+      else if (currentToken is EndToken){
+        Token topToken = opStack.removeLast();
+        while (topToken is! BeginToken){
+          outputQueue.add(topToken);
+          topToken =  opStack.removeLast();
+        }
+      }
+      currentToken = currentToken.next;
+    }
+    while (opStack.isNotEmpty){
+      outputQueue.add(opStack.removeLast());
+    }
+
+    //right, then left
+    List<Expression> eStack = [];
+    Token currToken;
+    while (outputQueue.isNotEmpty){
+      currToken = outputQueue.removeFirst();
+      if (currToken is NumberToken){
+        eStack.add(new LiteralExpression(int.parse(currToken.numericalValue)));
+      }
+      else if (currToken is OperatorToken){
+        Expression right = eStack.removeLast();
+        Expression left = eStack.removeLast();
+        Expression newExpression;
+
+        if (currToken.type.isAdditionOperator){
+          newExpression = new AdditionExpression(left,right);
+        }
+        else if (currToken.type.isSubtractionOperator){
+          newExpression = new SubtractionExpression(left,right);
+        }
+        else if (currToken.type.isMultiplicationOperator){
+          newExpression = new MultiplicationExpression(left,right);
+        }
+        else{
+          newExpression = new DivisionExpression(left,right);
+        }
+        eStack.add(newExpression);
+      }
+    }
+    return eStack.removeLast();
+  }
 }

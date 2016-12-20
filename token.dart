@@ -1,10 +1,5 @@
-import 'dart:collection';
 import 'syntactic_entity.dart';
 
-/**
- * The open half of a grouping pair of Tokens. This is used
- * for parentheses.
- */
 class BeginToken extends SimpleToken {
   BeginToken(int offset) : super(TokenType.OPEN_PAREN, offset);
 
@@ -27,6 +22,8 @@ class NumberToken extends SimpleToken {
 
 class OperatorToken extends SimpleToken {
   OperatorToken(TokenType type, int offset) : super(type, offset);
+
+  int get precedence => type.precedence;
 }
 
 class SimpleToken implements Token {
@@ -55,7 +52,6 @@ class SimpleToken implements Token {
   @override
   int get length => lexeme.length;
 
-  @override
   String get lexeme => type.lexeme;
 
   @override
@@ -101,7 +97,7 @@ abstract class Token implements SyntacticEntity{
   bool get isOperator;
 
   bool get isSynthetic;
-  
+
   Token get next;
 
   @override
@@ -135,13 +131,19 @@ abstract class Token implements SyntacticEntity{
 class TokenClass {
   static const TokenClass NO_CLASS = const TokenClass('NO_CLASS');
 
-  static const TokenClass ADDITIVE_OPERATOR = 
-    const TokenClass('ADDITIVE_OPERATOR', 3);
-  
-  static const TokenClass MULTIPLICATIVE_OPERATOR = 
-    const TokenClass('MULTIPLICATIVE_OPERATOR', 2);
+  static const TokenClass ADDITION_OPERATOR =
+    const TokenClass('ADDITION_OPERATOR', 3);
 
-  static const TokenClass UNARY_POSTFIX_OPERATOR = 
+  static const TokenClass SUBTRACTION_OPERATOR =
+    const TokenClass('SUBTRACTION_OPERATOR', 3);
+
+  static const TokenClass MULTIPLICATION_OPERATOR =
+    const TokenClass('MULTIPLICATION_OPERATOR', 2);
+
+  static const TokenClass DIVISION_OPERATOR =
+    const TokenClass('DIVISION_OPERATOR', 2);
+
+  static const TokenClass UNARY_POSTFIX_OPERATOR =
     const TokenClass('UNARY_POSTFIX_OPERATOR', 4);
 
   static const TokenClass NUMBER =
@@ -160,25 +162,31 @@ class TokenClass {
 
 class TokenType {
   static const TokenType EOF = const _EndOfFileTokenType();
-  static const TokenType MINUS = const TokenType._('MINUS', TokenClass.ADDITIVE_OPERATOR, '-');
-  static const TokenType OPEN_PAREN = 
+  static const TokenType MINUS = const TokenType._('MINUS', TokenClass.SUBTRACTION_OPERATOR, '-', 1);
+  static const TokenType OPEN_PAREN =
     const TokenType._('OPEN_PAREN', TokenClass.UNARY_POSTFIX_OPERATOR, '');
   static const TokenType CLOSE_PAREN =
     const TokenType._('CLOSE_PAREN', TokenClass.NO_CLASS, '');
-  static const TokenType SLASH = 
-    const TokenType._('SLASH', TokenClass.MULTIPLICATIVE_OPERATOR, '/');
-  static const TokenType STAR = 
-    const TokenType._('STAR', TokenClass.MULTIPLICATIVE_OPERATOR, '*');
-  static const TokenType PLUS = 
-    const TokenType._('PLUS', TokenClass.ADDITIVE_OPERATOR, '+');
+  static const TokenType SLASH =
+    const TokenType._('SLASH', TokenClass.DIVISION_OPERATOR, '/', 2);
+  static const TokenType STAR =
+    const TokenType._('STAR', TokenClass.MULTIPLICATION_OPERATOR, '*', 2);
+  static const TokenType PLUS =
+    const TokenType._('PLUS', TokenClass.ADDITION_OPERATOR, '+', 1);
   static const TokenType NUMBER =
     const TokenType._('NUMBER', TokenClass.NUMBER);
 
-  bool get isMultiplicativeOperator =>
-    _tokenClass == TokenClass.MULTIPLICATIVE_OPERATOR;
-  
-  bool get isAdditiveOperator =>
-    _tokenClass == TokenClass.ADDITIVE_OPERATOR;
+  bool get isMultiplicationOperator =>
+    _tokenClass == TokenClass.MULTIPLICATION_OPERATOR;
+
+  bool get isAdditionOperator =>
+    _tokenClass == TokenClass.ADDITION_OPERATOR;
+
+  bool get isSubtractionOperator =>
+    _tokenClass == TokenClass.SUBTRACTION_OPERATOR;
+
+  bool get isDivisionOperator =>
+    _tokenClass == TokenClass.DIVISION_OPERATOR;
 
   bool get isUnaryPostfixOperator =>
     _tokenClass == TokenClass.UNARY_POSTFIX_OPERATOR;
@@ -190,10 +198,11 @@ class TokenType {
 
   final String name;
   final String lexeme;
+  final int precedence;
   final TokenClass _tokenClass;
 
   const TokenType._(this.name,
-      [this._tokenClass = TokenClass.NO_CLASS, this.lexeme = null]);
+      [this._tokenClass = TokenClass.NO_CLASS, this.lexeme = null, this.precedence = 0]);
 }
 
 class _EndOfFileTokenType extends TokenType {
@@ -202,3 +211,4 @@ class _EndOfFileTokenType extends TokenType {
   @override
   String toString() => '-eof-';
 }
+
